@@ -1,0 +1,11 @@
+{
+  "id": "kali-2026.2-minimal-arm64-v1",
+  "termuxArchitecture": "aarch64",
+  "rootDirectory": "kali-arm64",
+  "url": "https://kali.download/nethunter-images/kali-2026.2/rootfs/kali-nethunter-rootfs-minimal-arm64.tar.xz",
+  "sha256": "d6403a5da175df325611d23af4b92330856059c45454eced7f4cdf3ca6df2e4e",
+  "downloadBytes": 137313840,
+  "reserveBytes": 8589934592,
+  "maximumExpandedBytes": 2147483648,
+  "kaliPackages": ["python3", "nmap", "metasploit-framework", "sudo"]
+}

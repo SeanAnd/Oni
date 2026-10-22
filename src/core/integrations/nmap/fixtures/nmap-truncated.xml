@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" args="nmap -oX - 10.0.0.1" start="1700000002">
+  <host>
+    <status state="up" reason="user-set"/>
+    <address addr="10.0.0.1" addrtype="ipv4"/>

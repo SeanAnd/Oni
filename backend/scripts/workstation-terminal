@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Explicit authenticated terminal bootstrap; no command text enters RUN_COMMAND."""
+import json,os,secrets,subprocess,sys,time,urllib.request
+import workstation_common as common
+from workstation_terminal import PORT,PRESETS,detect_presets,serve
+if len(sys.argv)>1 and sys.argv[1]=='--serve':
+    serve(json.loads(sys.stdin.read(4096)))
+elif len(sys.argv)>1 and sys.argv[1]=='--detect':
+    try:
+        import pty
+        master,slave=pty.openpty();os.close(master);os.close(slave)
+        presets=detect_presets()
+        print(json.dumps(dict(ok=bool(presets),presets=presets)))
+    except OSError:
+        print(json.dumps(dict(ok=False,presets=[])))
+else:
+    child=None
+    try:
+        value=json.loads(sys.stdin.read(4096))
+        token=value.get('token','');expected=common.read_helper_token()
+        if not expected or not secrets.compare_digest(token,expected): raise ValueError()
+        if value.get('preset') not in PRESETS or not isinstance(value.get('grant'),str) or len(value['grant'])!=64 or common.validate_id(value.get('sessionId'),'sessionId'): raise ValueError()
+        # Single fixed port. A live or unrelated listener is never killed/replaced.
+        import socket
+        with socket.socket() as probe:
+            probe.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+            probe.bind(('127.0.0.1',PORT))
+        config={k:value[k] for k in ['preset','grant','sessionId']}
+        child=subprocess.Popen([sys.executable,__file__,'--serve'],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+        child.stdin.write(json.dumps(config).encode());child.stdin.close()
+        for _ in range(40):
+            try:
+                request=urllib.request.Request(f'http://127.0.0.1:{PORT}/v1/terminal',data=json.dumps(dict(sessionId=value['sessionId'],operation='read',offset=0)).encode(),headers={'Authorization':'Bearer '+value['grant'],'Content-Type':'application/json'})
+                with urllib.request.urlopen(request,timeout=.5) as response: ready=json.load(response)
+                if ready.get('ok'): break
+            except OSError: time.sleep(.1)
+        else:
+            child.terminate();child.wait(timeout=3)
+            raise ValueError()
+        print(json.dumps(dict(ok=True,sessionId=value['sessionId'])))
+    except (OSError,ValueError,TypeError):
+        print(json.dumps(dict(ok=False,errorKey='TERMINAL_UNAVAILABLE',detail='Terminal could not start. Recover the helper or close the existing terminal session.')))

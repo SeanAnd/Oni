@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" args="nmap --unprivileged -sT -Pn -n -p 22,80 -sV -oX - 192.168.1.10" start="1700000000">
+  <host>
+    <status state="up" reason="user-set"/>
+    <address addr="192.168.1.10" addrtype="ipv4"/>
+    <ports>
+      <port protocol="tcp" portid="22">
+        <state state="open" reason="syn-ack"/>
+        <service name="ssh" product="OpenSSH" version="9.2"/>
+      </port>
+      <port protocol="tcp" portid="80">
+        <state state="open" reason="syn-ack"/>
+        <service name="http" product="nginx"/>
+      </port>
+    </ports>
+  </host>
+</nmaprun>

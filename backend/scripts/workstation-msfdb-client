@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Kali CLI: fixed lifecycle requests; Framework itself owns interactive commands."""
+import argparse
+import hashlib
+import json
+import os
+import runpy
+from pathlib import Path
+import sys
+import time
+import urllib.error
+import urllib.request
+import uuid
+
+class ClientError(Exception):
+    pass
+
+
+URL = 'http://127.0.0.1:28765/v1/workstation/msfdb'
+VERBS = ('status', 'check', 'start', 'stop', 'restart', 'init', 'run', 'delete', 'reinit', 'rollback', 'poll')
+
+
+def request(payload):
+    config = Path.home() / '.msf4/oni-managed/client.json'
+    if config.is_symlink() or config.stat().st_mode & 0o077:
+        raise ClientError('Unsafe lifecycle credential permissions; repair Oni setup.')
+    token = json.loads(config.read_text())['token']
+    req = urllib.request.Request(URL, data=json.dumps(payload).encode(),
+        headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    # Never send a local lifecycle credential through an environment HTTP proxy.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(req, timeout=10) as response:
+            result = json.loads(response.read(65537))
+    except urllib.error.HTTPError as error:
+        result = json.loads(error.read(4096))
+    if not isinstance(result, dict):
+        raise ValueError('Invalid lifecycle response')
+    return result
+
+
+def wait(payload):
+    result = request(payload)
+    deadline = time.monotonic() + 195
+    while result.get('status') in {'queued', 'starting', 'running'}:
+        if time.monotonic() >= deadline:
+            raise ClientError('Operation still pending. Resume with msfdb poll --operation-id ' + payload['operationId'])
+        time.sleep(.5)
+        result = request({'verb': 'poll', 'operationId': payload['operationId']})
+    return result.get('databaseResult') or result
+
+
+def launch_profile():
+    runtime = Path.home() / '.msf4/oni-managed/config.py'
+    return runpy.run_path(str(runtime))['validate_launch']()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Oni managed Termux PostgreSQL. Framework commands remain native. Requires paired Oni setup and a running helper. Explicit /usr/bin/msfdb bypasses this wrapper.')
+    parser.add_argument('verb', choices=VERBS, nargs='?')
+    parser.add_argument('--retry', action='store_true', help='Retry a failed attempt with the same logical operation identity')
+    parser.add_argument('--operation-id', help='Resume an existing operation without duplicating it')
+    parser.add_argument('--confirm', action='store_true', help='Prepare a verified backup, then request interactive maintenance confirmation')
+    parser.add_argument('--rollback-id', help='Managed rollback identity returned by a confirmed reset')
+    parser.add_argument('--json', action='store_true', help='Print the sanitized structured result')
+    argv = list(sys.argv[1:] if argv is None else argv)
+    boundary = argv.index('--') if '--' in argv else len(argv)
+    console = argv[boundary+1:]
+    args = parser.parse_args(argv[:boundary])
+    if not args.verb:
+        parser.print_help()
+        return 0
+    if console and args.verb != 'run':
+        parser.error('Only run accepts extra arguments, after --')
+    if args.confirm and args.verb not in {'delete', 'reinit'}:
+        parser.error('--confirm applies only to delete/reinit')
+    if args.rollback_id and args.verb != 'rollback':
+        parser.error('--rollback-id applies only to rollback')
+    if args.retry and not args.operation_id:
+        parser.error('--retry requires --operation-id')
+    if args.verb == 'poll' and (not args.operation_id or args.retry):
+        parser.error('poll requires --operation-id and does not accept --retry')
+    operation = args.operation_id or ('cli-' + uuid.uuid4().hex)
+    if not args.json:
+        print('Oni: termux-local PostgreSQL · operation ' + operation, flush=True)
+    payload = {'verb': args.verb, 'operationId': operation}
+    if args.verb == 'rollback':
+        payload['rollbackId'] = args.rollback_id
+    if args.verb in {'delete', 'reinit'}:
+        if not args.confirm or not sys.stdin.isatty():
+            raise ClientError('No data changed. Close all consoles, then use ' + args.verb + ' --confirm in an interactive terminal for a verified backup and recoverable maintenance.')
+        preparation = {'verb': 'prepare-' + args.verb, 'operationId': operation}
+        if args.retry:
+            preparation['retry'] = True
+        prepared = wait(preparation)
+        if not prepared.get('ok'):
+            print(json.dumps(prepared) if args.json else prepared.get('detail', 'Preparation failed.'))
+            return 1
+        print('Backup verified: ' + prepared['backupId'] + '. Existing database and Kali files will be retained.')
+        phrase = args.verb + ' msf'
+        if input('Type "' + phrase + '" to continue: ') != phrase:
+            print('Cancelled. No database replaced.')
+            return 1
+        payload['confirmationId'] = prepared['confirmationId']
+        payload['operationId'] = 'commit-' + hashlib.sha256(operation.encode()).hexdigest()[:48]
+    if args.retry:
+        payload['retry'] = True
+    result = wait(payload)
+    if args.json:
+        print(json.dumps(result))
+    else:
+        if not result.get('ok'):
+            print(result.get('errorKey', 'JOB_FAILED') + ': ' + result.get('detail', 'Operation failed.'))
+        else:
+            print(result.get('detail', 'Completed.'))
+            for key in ('running', 'authenticatedQueryOk', 'identityVerified', 'schemaReady', 'frameworkCheck', 'backupId', 'rollbackId'):
+                if key in result:
+                    print(key + ': ' + str(result[key]))
+    if not result.get('ok'):
+        return 1
+    if args.verb == 'run':
+        path = launch_profile()
+        os.execvp('msfconsole', ['msfconsole', '-q', '-y', str(path), *console])
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except ClientError as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
+    except (OSError, ValueError, KeyError, urllib.error.URLError):
+        print('Oni msfdb could not complete. Inspect the operation in Oni or retry with its --operation-id. Recover the helper/configuration in Oni; Kali msfdb was not invoked.', file=sys.stderr)
+        sys.exit(1)

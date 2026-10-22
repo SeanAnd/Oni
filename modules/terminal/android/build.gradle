@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'com.skid.workstation'
+version = '1.0.0'
+android {
+  namespace "com.termux.view"
+  defaultConfig { versionCode 1; versionName "1.0.0" }
+}
+dependencies {
+  implementation project(':skid-termux')
+  implementation project(':skid-jobs')
+  implementation "androidx.annotation:annotation:1.9.0"
+}

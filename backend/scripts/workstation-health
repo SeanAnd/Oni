@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Fixed NetHunter/Kali health probe for SKID (JSON on stdout)."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from workstation_common import (
+    HELPER_VERSION,
+    WORKSTATION_HOME,
+    ensure_layout,
+    json_error,
+    json_ok,
+    read_helper_token,
+    resolve_nh_path,
+    nh_argv,
+    run_kali,
+)
+
+def run_nh(args: list[str], timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
+    nh_path = resolve_nh_path()
+    if nh_path is None:
+        raise FileNotFoundError("nh launcher not found")
+    return run_kali(args[0], args[1:], timeout=timeout)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json", action="store_true", help="Emit JSON health envelope on stdout")
+    _ = parser.parse_args()
+
+    ensure_layout()
+    nh_path = resolve_nh_path()
+    if nh_path is None:
+        payload = json_error("NETHUNTER_NOT_FOUND", "NetHunter launcher (nh) was not found.")
+        print(json.dumps(payload))
+        return 1
+
+    try:
+        uname = run_nh(["uname", "-m"])
+        release_result = run_nh(["cat", "/etc/os-release"])
+    except (OSError, subprocess.TimeoutExpired):
+        payload = json_error("NETHUNTER_NOT_FOUND", "Kali health probe could not complete.")
+        print(json.dumps(payload))
+        return 1
+
+    if uname.returncode != 0:
+        payload = json_error(
+            "NETHUNTER_NOT_FOUND",
+            "Failed to execute uname inside NetHunter.",
+        )
+        print(json.dumps(payload))
+        return uname.returncode or 1
+
+    arch = uname.stdout.strip() or None
+    release_fields = dict(line.split("=", 1) for line in release_result.stdout.splitlines() if "=" in line)
+    if release_result.returncode != 0 or release_fields.get("ID", "").strip('"') != "kali":
+        print(json.dumps(json_error("NETHUNTER_NOT_FOUND", "Launcher did not report a Kali environment.")))
+        return 1
+    release = release_fields.get("PRETTY_NAME", "Kali Linux").strip('"')[:256]
+    token_present = read_helper_token() is not None
+
+    payload = json_ok(
+        arch=arch,
+        kaliRelease=release,
+        nhPath=str(nh_path),
+        helperVersion=HELPER_VERSION,
+        workstationHome=str(WORKSTATION_HOME),
+        helperTokenConfigured=token_present,
+    )
+    print(json.dumps(payload))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

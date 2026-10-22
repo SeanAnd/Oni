@@ -1,0 +1,123 @@
+# This file is relative to software/. Keep source, lockfiles, migrations,
+# protocol/test fixtures, and secret-free configuration templates in Git.
+
+# JavaScript dependencies and tool caches
+node_modules/
+# Expo local modules must hoist through software/package.json only.
+modules/*/node_modules/
+.npm/
+.pnpm-store/
+.cache/
+.eslintcache
+.prettiercache
+*.tsbuildinfo
+
+# Expo / Metro generated state and bundles
+.expo/
+/expo-env.d.ts
+/dist/
+/web-build/
+/build/
+.metro-health-check*
+
+# Generated native projects only: modules/*/android/ contains real source.
+/android/
+/ios/
+.gradle/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+**/android/build/
+**/android/local.properties
+*.apk
+*.aab
+*.apks
+*.hprof
+
+# Tests, coverage, and automation output
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+/maestro-output/
+
+# Python environments, caches, and package output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+
+# Local environment and credentials (examples must contain no secrets)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.*.example
+!.env.*.sample
+!.env.*.template
+.secrets/
+/secrets/
+/credentials/
+/credentials.json
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Local backend state, database volumes/backups, and runtime artifacts.
+# Scope these directories instead of hiding all SQL, DB, or capture fixtures.
+/backend/.local/
+/backend/data/
+/backend/state/
+/backend/pgdata/
+/backend/postgres/
+/backend/backups/
+/backend/logs/
+/backend/tmp/
+/artifacts/
+/projects/
+/captures/
+/exports/
+/logs/
+/tmp/
+/temp/
+*.log
+*.pid
+*.pid.lock
+
+# Local editor/OS state; allow portable shared VS Code configuration.
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Local development records. Keep the files; do not publish them.
+/docs/
+
+# Durable local helper operation history
+/backend/.state/
+
+# Deterministic helper assets generated from the tracked backend manifest.
+/modules/termux/android/src/main/assets/skid-backend.zip
+/modules/termux/android/src/main/assets/skid-receive-bundle.py
+/modules/termux/android/src/main/assets/oni-ensure-python.sh

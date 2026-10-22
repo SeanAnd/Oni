@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+import json
+from workstation_common import framework_session_lock
+try:
+    with framework_session_lock():
+        result = dict(ok=True)
+except BlockingIOError:
+    result = dict(ok=False, errorKey='DATABASE_BUSY', detail='Close managed Framework consoles before switching database profiles or configuration.')
+print(json.dumps(result))

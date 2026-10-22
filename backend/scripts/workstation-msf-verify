@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Verify Metasploit Framework database connectivity (version-tested db_status probe)."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from workstation_common import ensure_layout, json_error, json_ok, resolve_nh_path, nh_argv, run_kali, MSF_EXEC_PROGRAM, msf_exec_program  # noqa: E402
+
+# Framework resource-script Ruby API; no direct Framework table SQL.
+RESOURCE = """<ruby>
+require 'json'
+begin
+  connected = !!framework.db.active
+  identity = false
+  if connected
+    cfg = ApplicationRecord.connection_db_config.configuration_hash
+    identity = framework.db.driver == 'postgresql' && cfg[:host] == '127.0.0.1' && cfg[:port].to_i == 5432 && cfg[:username] == 'msf' && cfg[:database] == 'msf'
+  end
+  ready = false
+  if connected && identity
+    framework.db.hosts({}).limit(1).to_a
+    framework.db.services({}).limit(1).to_a
+    ready = true
+  end
+  puts 'SKID_DB_STATUS:' + {connected: connected, schemaReady: ready, identityVerified: identity}.to_json
+rescue StandardError
+  puts 'SKID_DB_STATUS:' + {connected: false, schemaReady: false}.to_json
+end
+</ruby>
+exit -y
+"""
+
+
+def run_db_status(timeout: float = 120.0, profile: str = "termux-local", staging: str | None = None) -> subprocess.CompletedProcess[str]:
+    resource = RESOURCE
+    if staging is not None:
+        if profile != 'termux-local' or not re.fullmatch(r'skid_stage_[a-f0-9]{16}', staging):
+            raise ValueError('Invalid managed staging identity')
+        resource = RESOURCE.replace("cfg[:database] == 'msf'", "cfg[:database] == '" + staging + "'")
+    # Database verification does not require loading the exploit/module catalog.
+    return run_kali("python3", ["-c", msf_exec_program(profile, staging), "--defer-module-loads", "-r", "/dev/stdin"], input=resource, timeout=timeout)
+
+
+def interpret_db_status(completed: subprocess.CompletedProcess[str]) -> tuple[bool, str, dict[str, str | bool]]:
+    combined = "\n".join([completed.stdout, completed.stderr])
+    if completed.returncode != 0 and not combined.strip():
+        return False, "METASPLOIT_UNAVAILABLE", {
+            "frameworkPresent": False,
+            "connected": False,
+            "schemaReady": False,
+        }
+    if "database.yml" in combined.lower() and "no such file" in combined.lower():
+        return False, "METASPLOIT_UNAVAILABLE", {
+            "frameworkPresent": True,
+            "connected": False,
+            "schemaReady": False,
+        }
+    marker = next((line.split('SKID_DB_STATUS:', 1)[1] for line in completed.stdout.splitlines() if line.startswith('SKID_DB_STATUS:')), None)
+    try:
+        status = json.loads(marker) if marker else {}
+    except (ValueError, TypeError):
+        status = {}
+    if not isinstance(status, dict):
+        status = {}
+    connected = completed.returncode == 0 and status.get('connected') is True
+    identity = connected and status.get('identityVerified') is True
+    schema_ready = identity and status.get('schemaReady') is True
+    if connected and not identity:
+        return False, 'DATABASE_OWNERSHIP_DENIED', dict(frameworkPresent=True, connected=True, schemaReady=False, identityVerified=False, detail='Framework selected an unexpected data service. Repair its saved default/configuration.')
+    if connected and not schema_ready:
+        return False, 'METASPLOIT_UNAVAILABLE', dict(frameworkPresent=True, connected=True, schemaReady=False, identityVerified=True, detail='Framework schema verification failed.')
+    if not connected:
+        detail = "Framework db_status did not report a PostgreSQL connection."
+        error_key = "METASPLOIT_UNAVAILABLE"
+        if status.get('connected') is False:
+            error_key = "DATABASE_UNAVAILABLE"
+            detail = "Framework could not connect to PostgreSQL. Start the device database and check its saved credential."
+        if "connection refused" in combined.lower():
+            detail = "PostgreSQL connection refused from Kali. Start the device database and check its saved credential."
+            error_key = "DATABASE_UNAVAILABLE"
+        elif "password authentication failed" in combined.lower():
+            detail = "Metasploit database credentials were rejected."
+            error_key = "DATABASE_CREDENTIALS_INVALID"
+        return False, error_key, {
+            "frameworkPresent": True,
+            "connected": False,
+            "schemaReady": False,
+            "detail": detail,
+        }
+    return True, "", {
+        "frameworkPresent": True,
+        "connected": True,
+        "schemaReady": schema_ready,
+        "identityVerified": identity,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--profile", choices=["termux-local"], default="termux-local")
+    parser.add_argument("--staging")
+    args = parser.parse_args()
+
+    ensure_layout()
+    try:
+        completed = run_db_status(profile=args.profile, staging=args.staging)
+    except FileNotFoundError:
+        payload = json_error(
+            "NETHUNTER_NOT_FOUND",
+            "NetHunter launcher (nh) was not found.",
+            frameworkPresent=False,
+            connected=False,
+            schemaReady=False,
+        )
+        print(json.dumps(payload))
+        return 1
+    except subprocess.TimeoutExpired:
+        payload = json_error(
+            "JOB_TIMEOUT",
+            "Metasploit db_status probe timed out.",
+            frameworkPresent=True,
+            connected=False,
+            schemaReady=False,
+        )
+        print(json.dumps(payload))
+        return 124
+
+    ok, error_key, fields = interpret_db_status(completed)
+    if ok:
+        print(json.dumps(json_ok(**fields)))
+        return 0
+
+    detail = str(fields.get("detail", "Metasploit database verification failed."))
+    print(
+        json.dumps(
+            json_error(
+                error_key or "METASPLOIT_UNAVAILABLE",
+                detail,
+                **{k: v for k, v in fields.items() if k != "detail"},
+            )
+        )
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

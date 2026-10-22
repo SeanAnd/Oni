@@ -1,0 +1,20 @@
+// Apply to every native dependency as well as the app, without patching node_modules.
+allprojects { p ->
+  ['com.android.application', 'com.android.library'].each { pluginId ->
+    p.pluginManager.withPlugin(pluginId) {
+      p.android.defaultConfig.externalNativeBuild.cmake.arguments.addAll([
+        '-DCMAKE_JOB_POOLS=skid_compile=1;skid_link=1',
+        '-DCMAKE_JOB_POOL_COMPILE=skid_compile',
+        '-DCMAKE_JOB_POOL_LINK=skid_link',
+        '-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--threads=1'
+      ])
+    }
+  }
+  p.pluginManager.withPlugin('com.facebook.react') {
+    p.afterEvaluate { p.extensions.getByName('react').extraPackagerArgs.addAll(['--max-workers', '1']) }
+  }
+  p.tasks.withType(Test).configureEach {
+    maxParallelForks = 1
+    maxHeapSize = '512m'
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<nmaprun scanner="nmap" args="nmap -oX - 127.0.0.1" start="1700000003">
+  <host>&xxe;</host>
+</nmaprun>

@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Install protected Framework configuration inside Kali; credentials arrive on stdin."""
+import argparse
+import json
+import subprocess
+import sys
+from workstation_common import json_error, json_ok, nh_argv, validate_id, framework_session_lock
+
+from pathlib import Path
+import secrets
+import workstation_common as common
+
+KALI_CONFIG_PROGRAM = Path(__file__).with_name('workstation_msf_config.py').read_text()
+
+
+def configure(password):
+    common.ensure_layout()
+    token_path = common.STATE_DIR / 'msfdb-token'
+    if token_path.is_symlink():
+        raise OSError('Unsafe credential path')
+    if not token_path.exists():
+        common.atomic_write(token_path, secrets.token_urlsafe(48).encode())
+    wrapper = Path(__file__).with_name('workstation-msfdb-client').read_text()
+    # Bundle receiver rewrites Termux entrypoint shebangs. This file runs in Kali.
+    wrapper = '#!/usr/bin/env python3' + wrapper[wrapper.index('\n'):]
+    config = dict(adapter='postgresql', host='127.0.0.1', port=5432, username='msf', database='msf', password=password, pool=5, timeout=5)
+    result = subprocess.run(nh_argv('python3', ['-c', KALI_CONFIG_PROGRAM]),
+        input=json.dumps(dict(profileId='termux-local', config=config, wrapper=wrapper, runtime=KALI_CONFIG_PROGRAM, token=token_path.read_text().strip())),
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30)
+    try:
+        payload = json.loads(result.stdout)
+    except ValueError:
+        payload = json_error('METASPLOIT_UNAVAILABLE', 'Unable to configure Framework inside Kali.')
+    if result.returncode or not payload.get('ok'):
+        return payload if payload.get('ok') is False else json_error('METASPLOIT_UNAVAILABLE', 'Framework configuration failed.')
+    return json_ok(configured=True)
+
+
+def parse_request(raw):
+    try:
+        value = json.loads(raw)
+        if not isinstance(value, dict) or set(value) - {'jobId', 'profileId', 'host', 'port', 'username', 'database', 'password'}:
+            raise ValueError()
+        if validate_id(value.get('jobId'), 'jobId'):
+            raise ValueError()
+        profile = value.get('profileId', 'termux-local')
+        if profile not in {'termux-local'}:
+            raise ValueError()
+        for field, expected in [('host', '127.0.0.1'), ('port', 5432), ('username', 'msf'), ('database', 'msf')]:
+            if value.get(field, expected) != expected:
+                raise ValueError()
+        password = value.get('password')
+        if not isinstance(password, str) or not 1 <= len(password) <= 512 or '\x00' in password:
+            raise ValueError()
+        return value, None
+    except (ValueError, TypeError):
+        return None, 'Invalid profile Framework configuration.'
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--request-stdin', action='store_true')
+    group.add_argument('--uninstall', action='store_true', help='Restore unchanged managed Kali files; retain originals and data')
+    args = parser.parse_args()
+    if args.uninstall:
+        with framework_session_lock():
+            result = common.run_kali('python3', ['-c', KALI_CONFIG_PROGRAM], input='{"uninstall":true}', timeout=30)
+            payload = json.loads(result.stdout)
+            if result.returncode == 0:
+                (common.STATE_DIR / 'msfdb-token').unlink(missing_ok=True)
+            print(json.dumps(payload))
+            return 0 if payload.get('ok') else 1
+    request, issue = parse_request(sys.stdin.read(4097))
+    if request is None:
+        print(json.dumps(json_error('INVALID_PAYLOAD', issue)))
+        return 0
+    try:
+        with framework_session_lock():
+            payload = configure(request['password'])
+        payload['jobId'] = request['jobId']
+    except BlockingIOError:
+        payload = json_error('DATABASE_BUSY', 'Close managed Framework consoles before changing configuration.')
+    except (OSError, subprocess.TimeoutExpired):
+        payload = json_error('METASPLOIT_UNAVAILABLE', 'Unable to write protected configuration inside Kali.')
+    print(json.dumps(payload))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

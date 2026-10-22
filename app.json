@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Oni",
+    "slug": "skid",
+    "version": "0.1.0",
+    "scheme": [
+      "oni",
+      "skid"
+    ],
+    "platforms": [
+      "android"
+    ],
+    "orientation": "portrait",
+    "icon": "./assets/oni/brand/app-icon.png",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "com.skid.workstation",
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/oni/brand/adaptive-foreground.png",
+        "backgroundColor": "#F2EEE5"
+      }
+    },
+    "web": {
+      "favicon": "./assets/oni/brand/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/oni/oni-animation/0.png",
+          "imageWidth": 280
+        }
+      ],
+      "./modules/termux/app.plugin.js",
+      "./modules/jobs/app.plugin.js",
+      "expo-secure-store",
+      "expo-sqlite"
+    ]
+  }
+}

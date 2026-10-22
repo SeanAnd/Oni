@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+"""Read-only setup readiness. Never install/reconfigure from a probe."""
+import json
+from pathlib import Path
+import workstation_common as common
+
+result = dict(ok=True, kaliReady=False, toolsReady=False, existingInstallation=False)
+launcher = common.resolve_nh_path()
+if launcher:
+    result['existingInstallation'] = True
+    try:
+        response = common.run_kali('sh', ['-c', '. /etc/os-release && test "$ID" = kali'], timeout=15)
+        result['kaliReady'] = response.returncode == 0
+        if result['kaliReady']:
+            tools = common.run_kali('sh', ['-c', 'command -v python3 >/dev/null && command -v nmap >/dev/null && command -v msfconsole >/dev/null'], timeout=15)
+            result['toolsReady'] = tools.returncode == 0
+        else:
+            result.update(ok=False, errorKey='SETUP_EXISTING_INSTALLATION')
+    except Exception:
+        result.update(ok=False, errorKey='SETUP_EXISTING_INSTALLATION')
+elif any((Path.home() / name).exists() for name in ['kali-arm64', 'kali-armhf']):
+    marker = Path.home() / 'kali-arm64/.oni-setup-catalog'
+    owned = marker.is_file() and marker.read_text() == 'kali-2026.2-minimal-arm64-v1'
+    result.update(existingInstallation=True, ok=owned)
+    if not owned: result['errorKey'] = 'SETUP_EXISTING_INSTALLATION'
+print(json.dumps(result))

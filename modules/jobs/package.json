@@ -1,0 +1,11 @@
+{
+  "name": "skid-jobs",
+  "version": "1.0.0",
+  "description": "Native durable job ledger and foreground execution for SKID",
+  "main": "src/index.ts",
+  "scripts": {},
+  "peerDependencies": {
+    "expo": "^57.0.0",
+    "expo-modules-core": "^57.0.0"
+  }
+}

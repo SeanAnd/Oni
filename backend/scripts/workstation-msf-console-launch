@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Replace the user-requested foreground Termux session with a real Kali console."""
+import os
+import argparse
+from workstation_common import nh_argv, msf_exec_program, framework_session_lock
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--profile', choices=['termux-local'], default='termux-local')
+    parser.add_argument('--no-history', action='store_true')
+    args = parser.parse_args()
+    command = nh_argv('python3', ['-c', msf_exec_program(args.profile), *(['-H', '/dev/null'] if args.no_history else [])])
+    with framework_session_lock(exclusive=False):
+        os.execv(command[0], command)

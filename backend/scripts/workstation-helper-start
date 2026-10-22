@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Authenticated identity probe and bounded single-instance startup."""
+import fcntl
+import json
+import os
+import signal
+from pathlib import Path
+import secrets
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+import workstation_common as common
+
+
+def probe(token):
+    request = urllib.request.Request('http://127.0.0.1:28765/v1/workstation/identity', data=b'{}', headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=2) as response:
+            value = json.loads(response.read(4096))
+        if value.get('service') != 'skid-workstation':
+            raise ValueError('Unrelated helper identity')
+        return (value.get('helperVersion'), value.get('releaseId'))
+    except urllib.error.HTTPError:
+        raise ValueError('Helper port has incompatible identity or pairing. Stop the old owned helper before upgrading.')
+    except (urllib.error.URLError, TimeoutError):
+        return False
+
+
+def main():
+    common.ensure_layout()
+    value = json.loads(sys.stdin.read(1024))
+    token = value.get('token')
+    expected = common.read_helper_token()
+    if not isinstance(token, str) or not expected or not secrets.compare_digest(token, expected):
+        return dict(ok=False, errorKey='PERMISSION_DENIED', detail='Repair helper pairing with the original token.')
+    with (common.STATE_DIR / 'helper-start.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        expected_release = (common.HELPER_VERSION, common.BIN_DIR.resolve().name)
+        version = probe(token)
+        if version == expected_release:
+            return dict(ok=True)
+        if version:
+            # The authenticated endpoint belongs to this installation. Stop only
+            # a process whose UID, argv and start identity match our helper.
+            from workstation_jobs import process_identity
+            owned = []
+            for entry in Path('/proc').iterdir():
+                if not entry.name.isdecimal():
+                    continue
+                try:
+                    argv = (entry / 'cmdline').read_bytes().split(b'\0')
+                    if entry.stat().st_uid == os.getuid() and str(common.BIN_DIR / 'workstation-helper').encode() in argv:
+                        pid = int(entry.name)
+                        owned.append((pid, process_identity(pid)))
+                except OSError:
+                    continue
+            if len(owned) != 1 or not owned[0][1]:
+                raise ValueError('Old helper ownership is ambiguous')
+            pid, identity = owned[0]
+            if process_identity(pid) != identity:
+                raise ValueError('Helper process changed')
+            os.kill(pid, signal.SIGTERM)
+            for _ in range(40):
+                if process_identity(pid) != identity:
+                    break
+                time.sleep(.1)
+            else:
+                raise ValueError('Old helper did not stop')
+        with (common.LOG_DIR / 'helper.log').open('ab') as log:
+            process = subprocess.Popen([sys.executable, str(common.BIN_DIR / 'workstation-helper')], stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+        for _ in range(20):
+            if probe(token) == expected_release:
+                return dict(ok=True)
+            if process.poll() is not None:
+                break
+            time.sleep(.25)
+    return dict(ok=False, errorKey='DATABASE_TRANSPORT_UNAVAILABLE', detail='Open Termux, return to SKID and retry Start services.')
+
+
+try:
+    result = main()
+except (ValueError, OSError):
+    result = dict(ok=False, errorKey='DATABASE_TRANSPORT_UNAVAILABLE', detail='Helper identity or startup failed. Check existing helper version and pairing; no unrelated service was stopped.')
+print(json.dumps(result))

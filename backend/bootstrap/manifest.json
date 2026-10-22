@@ -1,0 +1,134 @@
+{
+  "backendVersion": "1.3.1",
+  "requiredPackages": [
+    "python",
+    "postgresql"
+  ],
+  "scripts": [
+    {
+      "name": "0001_msf_role.sql",
+      "path": "migrations/termux/0001_msf_role.sql",
+      "sha256": "23b2274f350dce953167453c71feed5bd1f52f6514b5bb06d59e7fa4d13bb9e1"
+    },
+    {
+      "name": "loopback_http.py",
+      "path": "scripts/loopback_http.py",
+      "sha256": "11469c09b9148324f23264813f758f31fee044918cb85d8c98d3a955aa0e0cbf"
+    },
+    {
+      "name": "setup-catalog.json",
+      "path": "bootstrap/setup-catalog.json",
+      "sha256": "b43c7c58adb5f6af468db29faaee4a4257962ddc9a9d8e11d54e3e6a38ba360c"
+    },
+    {
+      "name": "workstation-credentials",
+      "path": "scripts/workstation-credentials",
+      "sha256": "c8ff2f6502f70d9a4700220a813ea43ae21c25ca723e948e1554b05b7097f0db"
+    },
+    {
+      "name": "workstation-db",
+      "path": "scripts/workstation-db",
+      "sha256": "94c5efa59c77c3369a915de6e406960758f5e0f0e2a9ca5f8eefbf6622307a31"
+    },
+    {
+      "name": "workstation-health",
+      "path": "scripts/workstation-health",
+      "sha256": "6fdfa446774fe309d8b58df5c624b3cbeb513351b3e196b14a68455d1b85663f"
+    },
+    {
+      "name": "workstation-helper-start",
+      "path": "scripts/workstation-helper-start",
+      "sha256": "b20ff39a41669cffea607963f817ca2dfd39df3a63400d57bc40506713ce03c8"
+    },
+    {
+      "name": "workstation-msf-config",
+      "path": "scripts/workstation-msf-config",
+      "sha256": "a4971708fdfb621177715ae9102013969a30ad5fbb36eff0e09b43096c517fd9"
+    },
+    {
+      "name": "workstation-msf-console-launch",
+      "path": "scripts/workstation-msf-console-launch",
+      "sha256": "b31a9027f6060aa5c8f6fed482a3fadf6a27ec0f3b66f7ecbe512ca6351fc13e"
+    },
+    {
+      "name": "workstation-msf-verify",
+      "path": "scripts/workstation-msf-verify",
+      "sha256": "4b17c9e32d12e461682f60f24a5746c4b57d3ce8a79dc75238ba44f7a55b499e"
+    },
+    {
+      "name": "workstation-msfdb-client",
+      "path": "scripts/workstation-msfdb-client",
+      "sha256": "139eab4f19cf664530b60a17c034a04ad4217fd2775a942c620806a60cb200d2"
+    },
+    {
+      "name": "workstation-profile-check",
+      "path": "scripts/workstation-profile-check",
+      "sha256": "01632edc82fc1d026a09d1dcba2eef43f5c2aa22d1555abb9f8fc4aae2d12ed9"
+    },
+    {
+      "name": "workstation-run",
+      "path": "scripts/workstation-run",
+      "sha256": "74ada27b6b436de49bbe15b42b464db734c3bd5d3b09f2ef3f7383d9fce6ebcb"
+    },
+    {
+      "name": "workstation-setup-probe",
+      "path": "scripts/workstation-setup-probe",
+      "sha256": "cb50cc6a38f53b304e74b861239781f94eeabf9989908062f80106c114423824"
+    },
+    {
+      "name": "workstation-terminal",
+      "path": "scripts/workstation-terminal",
+      "sha256": "d0878356fd2bbf1078f0783aa193d7c39f07ce763e6335dbe82d11996168caa2"
+    },
+    {
+      "name": "workstation_common.py",
+      "path": "scripts/workstation_common.py",
+      "sha256": "6d169d5caa54167f5d8f2944642943c662ecdd1206e32d7613ad54e0b0cc0c00"
+    },
+    {
+      "name": "workstation_database.py",
+      "path": "scripts/workstation_database.py",
+      "sha256": "a84b1cd6f44f6721836e8413b308c96f1002d222d1af5512bc69fbbf622eebc2"
+    },
+    {
+      "name": "workstation_helper.py",
+      "path": "scripts/workstation_helper.py",
+      "sha256": "0b043c2deafd86b9467aab2d789f5950393f63b5aead0a84a3e49a339feb6547"
+    },
+    {
+      "name": "workstation_jobs.py",
+      "path": "scripts/workstation_jobs.py",
+      "sha256": "0245a3a72c45e5adaa26ecde70bfe46b61d6e0e4bad1c18152d20e4043995821"
+    },
+    {
+      "name": "workstation_msf_config.py",
+      "path": "scripts/workstation_msf_config.py",
+      "sha256": "eb60746ab827ac50bae22a6bba0d94d7a5477e74699b17efc8dba66d5047de2c"
+    },
+    {
+      "name": "workstation_msfdb.py",
+      "path": "scripts/workstation_msfdb.py",
+      "sha256": "d1a8586c5932949af0281592017c494f631ee195999b3deecde4d8094c637c46"
+    },
+    {
+      "name": "workstation_msfdb_maintenance.py",
+      "path": "scripts/workstation_msfdb_maintenance.py",
+      "sha256": "e21950e106deedc5900150e198a5d949d1fb3f4b6c698886db1c3c4be523e173"
+    },
+    {
+      "name": "workstation_setup.py",
+      "path": "scripts/workstation_setup.py",
+      "sha256": "4ca77cab2308c2ccdca410895575fe6182093624600896c70ae650dacd2dc71d"
+    },
+    {
+      "name": "workstation_setup_archive.py",
+      "path": "scripts/workstation_setup_archive.py",
+      "sha256": "c594686acca91e5e46a32910783d2f633bb94aa2f2cba3fc3c3b463786d2ab03"
+    },
+    {
+      "name": "workstation_terminal.py",
+      "path": "scripts/workstation_terminal.py",
+      "sha256": "35b9096c04757fddd99ff6fed18afe7b30516243648419ae26657b8d6e616eab"
+    }
+  ]
+}
